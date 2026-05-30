@@ -19,9 +19,9 @@ include_guard(GLOBAL)
 #   <OUTPUT_DIR>/<stem>.cppm
 #
 # Generated names (for stem="mesh_frag", NAMESPACE="MyApp"):
-#   Module   = Shaders.MyApp.mesh_fragShader
+#   Module   = Shaders.MyApp.mesh_frag
 #   Namespace = Shaders::MyApp
-#   Class    = mesh_fragShader
+#   Class    = mesh_frag
 #
 # The shared module ShaderReflection.cppm is automatically copied into
 # OUTPUT_DIR so the generated .cppm files can import it.  All .cppm
@@ -116,7 +116,7 @@ function(add_slang_shaders)
                     -s  "${_stage}"
                     -o  "${ARG_OUTPUT_DIR}/${_stem}"
                     "${ARG_NAMESPACE}"
-                    "${_stem}Shader"
+                    "${_stem}"
             COMMENT "Compiling ${_file} (${_stage}:${_entry}) -> ${_stem}"
         )
 

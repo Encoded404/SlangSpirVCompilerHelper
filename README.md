@@ -63,16 +63,16 @@ The positional arguments define the module, namespace, and struct names:
 
 ```bash
 slang-spirv-compiler shaders/triangle.slang -e main -s fragment \
-    -o build/generated/triangle MyApp TriangleShader
+    -o build/generated/triangle MyApp Triangle
 ```
 
 Generated `triangle.cppm`:
 
 ```cpp
-export module Shaders.MyApp.TriangleShader;
+export module Shaders.MyApp.Triangle;
 import ShaderReflection;
 export namespace Shaders::MyApp {
-struct TriangleShader {
+struct Triangle {
     static std::span<const std::uint32_t> GetSpirvWords() noexcept { ... }  // #embed
     static vk::raii::ShaderModule CreateModule(vk::raii::Device const&) { ... }
     static constexpr ShaderStage GetStage() noexcept { return ShaderStage::eFragment; }
@@ -97,9 +97,9 @@ include(SlangSpirVCompiler)
 
 # Compile shaders — each row creates an add_custom_command so CMake
 # rebuilds only the shaders whose source changed.
-# Generated module: Shaders.MyApp.mesh_vertShader (etc.)
+# Generated module: Shaders.MyApp.mesh_vert (etc.)
 # Generated namespace: Shaders::MyApp
-# Generated struct: mesh_vertShader (etc.)
+# Generated struct: mesh_vert (etc.)
 add_slang_shaders(
     TARGET      MyShaders
     OUTPUT_DIR  "${CMAKE_BINARY_DIR}/generated/shaders"
