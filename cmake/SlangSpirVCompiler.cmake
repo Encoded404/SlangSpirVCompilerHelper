@@ -22,6 +22,13 @@ include_guard(GLOBAL)
 # Class name  = <PascalCase(stem)>Shader
 # Namespace   = Shaders::<NAMESPACE>
 #
+# The shared module ShaderReflection.cppm is automatically copied into
+# OUTPUT_DIR so the generated .cppm files can import it.  All .cppm
+# files are listed in the target property SLANG_CPPM_FILES:
+#
+#   get_target_property(CPPM_FILES MyShaders SLANG_CPPM_FILES)
+#   target_sources(my_app PRIVATE ${CPPM_FILES})
+#
 # Generated .cppm files get COMPILE_OPTIONS "-Wno-c23-extensions".
 #=======================================================================]
 
@@ -49,9 +56,37 @@ function(add_slang_shaders)
 
     file(MAKE_DIRECTORY "${ARG_OUTPUT_DIR}")
 
-    set(_all_outputs "")
+    # ---- ShaderReflection.cppm (shared module) ----
+    # The shared module lives alongside this cmake file in the slang-
+    # spirv-compiler-helper tree.  If you installed/cmake-bundled this
+    # module elsewhere, adjust SHARED_MODULE_DIR or override the path
+    # before calling add_slang_shaders().
+    if(NOT SHARED_MODULE_DIR)
+        get_filename_component(_helper_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+        set(SHARED_MODULE_DIR "${_helper_root}/src/cli_tool")
+    endif()
 
-    # Parse SHADERS: groups of 4 entries (stem file stage entry)
+    set(_shared_module_src "${SHARED_MODULE_DIR}/ShaderReflection.cppm")
+    set(_shared_module_dst "${ARG_OUTPUT_DIR}/ShaderReflection.cppm")
+
+    if(EXISTS "${_shared_module_src}")
+        add_custom_command(
+            OUTPUT  "${_shared_module_dst}"
+            DEPENDS "${_shared_module_src}"
+            COMMAND "${CMAKE_COMMAND}" -E copy "${_shared_module_src}" "${_shared_module_dst}"
+            COMMENT "Copying ShaderReflection.cppm"
+        )
+        set_source_files_properties("${_shared_module_dst}" PROPERTIES
+            COMPILE_OPTIONS "-Wno-c23-extensions"
+        )
+    else()
+        message(WARNING "ShaderReflection.cppm not found at ${_shared_module_src}; "
+                        "generated .cppm files will need the shared module provided separately")
+    endif()
+
+    # ---- per-shader .spv + .cppm ----
+    set(_all_outputs "${_shared_module_dst}")
+
     list(LENGTH ARG_SHADERS _len)
     math(EXPR _num_groups "${_len} / 4")
     foreach(_i RANGE 0 ${_num_groups})
@@ -93,4 +128,19 @@ function(add_slang_shaders)
     endforeach()
 
     add_custom_target("${ARG_TARGET}" DEPENDS ${_all_outputs})
+
+    # Collect just the .cppm files for easy consumption
+    set(_all_cppms "${_shared_module_dst}")
+    foreach(_i RANGE 0 ${_num_groups})
+        math(EXPR _base "${_i} * 4")
+        list(GET ARG_SHADERS ${_base} _stem)
+        if(NOT _stem)
+            break()
+        endif()
+        list(APPEND _all_cppms "${ARG_OUTPUT_DIR}/${_stem}.cppm")
+    endforeach()
+
+    set_target_properties("${ARG_TARGET}" PROPERTIES
+        SLANG_CPPM_FILES "${_all_cppms}"
+    )
 endfunction()

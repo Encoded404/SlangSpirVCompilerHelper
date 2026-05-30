@@ -1,86 +1,142 @@
-# modern-cmake-template
+# slang-spirv-compiler-helper
 
-Modern CMake starter that keeps the library as the main product, adds a thin CLI to exercise it, and wires in GoogleTest via vcpkg. Clang-Tidy can be enabled when available.
+CLI tool that compiles [Slang](https://github.com/shader-slang/slang) shaders to SPIR-V and generates C++20 module files (`.cppm`) with `#embed` for the bytecode and compile-time reflection data.
 
 ## Layout
 
 ```
-modern-cmake-app-template/
+slang-spirv-compiler-helper/
 ├── CMakeLists.txt
 ├── CMakePresets.json
+├── vcpkg.json
 ├── cmake/
-│   └── ConfigureClangTidy.cmake
+│   ├── ConfigureClangTidy.cmake
+│   └── SlangSpirVCompiler.cmake       # CMake module for build-system integration
 ├── src/
 │   ├── CMakeLists.txt
-│   ├── app/
-│   │   ├── CMakeLists.txt
-│   │   └── main.cpp
-│   ├── include/
-│   │   ├── lib1/lib_example.hpp              # Public headers
-│   │   └── logging/
-│   │       ├── logging.hpp                   # Optional logging interface
-│   │       └── ConsoleLogger.hpp             # example logger implimentation   
-│   └── lib1/
+│   └── cli_tool/
 │       ├── CMakeLists.txt
-│       ├── lib_example.cpp
-│       └── lib_privateCode.cpp/.hpp          # Internal-only code
-├── tests/
-│   ├── CMakeLists.txt
-│   ├── example_tests.cpp
-│   └── test_logging.hpp
-├── vcpkg.json
-└── vcpkg-configuration.json
+│       ├── main.cpp                    # CLI entry point
+│       └── ShaderReflection.cppm       # Shared type module (copy into your project)
+├── examples/
+│   ├── compile_examples.sh            # Run to test all example shaders
+│   ├── output/                        # Generated .spv + .cppm files
+│   └── shaders/                       # Example .slang files
+└── external/
+    └── cppLoggingInterface/
 ```
 
 ## Prerequisites
 
 - CMake ≥ 3.15
 - A C++20-capable compiler
-- vcpkg available and `VCPKG_ROOT` set (the default preset expects it).
-
-## VCPKG installation
-you can follow the guide [here](https://github.com/microsoft/vcpkg) for installation
-
-## Clone
-
-```bash
-git clone <repository-url>
-cd modern-cmake-app-template
-```
-
-## Configure
-
-Use the provided Ninja multi-config preset:
-
-```bash
-cmake --preset default -S . -B build
-```
-
-Options:
-- `-DBUILD_TESTING=OFF` to skip tests (default: ON via preset)
-- `-DENABLE_LOGGING=OFF` to compile out logging macros (default: ON)
-- `-DCLANG_TIDY_ENABLED=OFF` to skip clang-tidy configuration
-
-If you prefer a manual invoke, or vcpkg lives elsewhere, specify the toolchain and cache toggles directly:
-
-```bash
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DBUILD_TESTING=ON
-```
+- vcpkg available with `VCPKG_ROOT` set
 
 ## Build
 
 ```bash
-cmake --build build --config Debug   # or Release/RelWithDebInfo
+cmake --preset default
+cmake --build build --parallel
 ```
 
-## Tests
+The CLI executable is placed at `build/bin/<config>/slang-spirv-compiler`.
 
-Tests are controlled by `BUILD_TESTING` (default ON in the preset). Disable with `-DBUILD_TESTING=OFF` if you only want the app:
+## Usage
 
 ```bash
-ctest --test-dir build -C Debug
+slang-spirv-compiler <input.slang> [-e entry] [-s stage] [-o prefix] \
+    [-n namespace] [-m module-name] [-c class-name]
 ```
 
-## Clang-Tidy
+Each invocation produces two files:
+- `<prefix>.spv`  — SPIR-V binary
+- `<prefix>.cppm` — C++20 module with `#embed`d bytecode + `constexpr` reflection
 
-Set `-DCLANG_TIDY_ENABLED=ON` (default) to enable static analysis when `clang-tidy` is found and a `.clang-tidy` file is present at the project root. Set it to `OFF` to skip configuring Clang-Tidy even if available.
+### Example
+
+```bash
+slang-spirv-compiler shaders/triangle.slang -e main -s fragment \
+    -o build/generated/triangle -n MyApp -m Triangle -c TriangleShader
+```
+
+Generated `triangle.cppm`:
+
+```cpp
+export module Triangle;
+import ShaderReflection;
+export namespace Shaders::MyApp {
+struct TriangleShader {
+    static std::span<const std::uint32_t> GetSpirvWords() noexcept { ... }  // #embed
+    static vk::raii::ShaderModule CreateModule(vk::raii::Device const&) { ... }
+    static constexpr ShaderStage GetStage() noexcept { return ShaderStage::eFragment; }
+    static constexpr std::span<const Binding> GetBindings() noexcept { ... }
+private:
+    static constexpr std::array<Binding, 3> kBindings_{{ ... }};
+};
+}
+```
+
+## CMake integration
+
+Include the module, compile shaders, and add them to your target:
+
+```cmake
+# Option A: add to module path
+list(APPEND CMAKE_MODULE_PATH "/path/to/slang-spirv-compiler-helper/cmake")
+include(SlangSpirVCompiler)
+
+# Option B: include directly
+# include(/path/to/slang-spirv-compiler-helper/cmake/SlangSpirVCompiler.cmake)
+
+# Compile shaders — each row creates an add_custom_command so CMake
+# rebuilds only the shaders whose source changed.
+add_slang_shaders(
+    TARGET      MyShaders
+    OUTPUT_DIR  "${CMAKE_BINARY_DIR}/generated/shaders"
+    NAMESPACE   MyApp
+    SHADER_DIR  "${CMAKE_SOURCE_DIR}/shaders"
+    COMPILER    slang-spirv-compiler
+    SHADERS
+        mesh_vert  mesh.slang    vertex   main
+        mesh_frag  mesh.slang    fragment main
+        compute    compute.slang compute  computeMain
+)
+
+# The function automatically copies ShaderReflection.cppm (the shared
+# module) into OUTPUT_DIR and lists all .cppm files in the target
+# property SLANG_CPPM_FILES:
+get_target_property(SHADER_CPPM MyShaders SLANG_CPPM_FILES)
+target_sources(my_app PRIVATE ${SHADER_CPPM})
+```
+
+If you keep the cmake module outside the project tree (e.g. installed), set `SHARED_MODULE_DIR` before calling `add_slang_shaders`:
+
+```cmake
+set(SHARED_MODULE_DIR "/path/to/ShaderReflection.cppm/dir")
+include(/path/to/SlangSpirVCompiler.cmake)
+```
+
+### Manual use (without cmake module)
+
+If you don't use `add_slang_shaders()`, copy `ShaderReflection.cppm` from `src/cli_tool/` into your project and add generated `.cppm` files with:
+
+```cmake
+set_source_files_properties(generated/triangle.cppm PROPERTIES
+    COMPILE_OPTIONS "-Wno-c23-extensions"
+)
+```
+
+## Examples
+
+Run `examples/compile_examples.sh` after building to compile all 8 example shaders:
+
+| File | Style | Stage | Bindings |
+|---|---|---|---|
+| `triangle.slang` | HLSL compat `register` + `[[vk::binding]]` | fragment | ConstantBuffer, Texture2D, Sampler |
+| `vertex.slang` | HLSL compat `register` + `[[vk::binding]]` | vertex | ConstantBuffer |
+| `compute.slang` | HLSL compat `register` + `[[vk::binding]]` | compute | RW/RO StructuredBuffer |
+| `parameter_block.slang` | `register` + `[[vk::binding]]` | fragment | ParameterBlock + ConstantBuffer |
+| `hlsl_compat_auto.slang` | `register`, no `[[vk::binding]]` | fragment | Auto-assigned bindings |
+| `mixed_binding.slang` | Mixed explicit + auto | fragment | Explicit ConstantBuffer + auto textures |
+| `pure_slang.slang` | Pure Slang, no annotations | fragment | Auto-assigned |
+| `pure_slang_explicit.slang` | Pure Slang + `[[vk::binding]]` | fragment | Fully explicit |
