@@ -63,7 +63,7 @@ function(add_slang_shaders)
     # module elsewhere, adjust SHARED_MODULE_DIR or override the path
     # before calling add_slang_shaders().
     if(NOT SHARED_MODULE_DIR)
-        get_filename_component(_helper_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+        get_filename_component(_helper_root "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/.." ABSOLUTE)
         set(SHARED_MODULE_DIR "${_helper_root}/src/cli_tool")
     endif()
 
