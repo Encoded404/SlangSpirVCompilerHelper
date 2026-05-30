@@ -90,7 +90,8 @@ function(add_slang_shaders)
 
     list(LENGTH ARG_SHADERS _len)
     math(EXPR _num_groups "${_len} / 4")
-    foreach(_i RANGE 0 ${_num_groups})
+    math(EXPR _last_group "${_num_groups} - 1")
+    foreach(_i RANGE 0 ${_last_group})
         math(EXPR _base "${_i} * 4")
         list(GET ARG_SHADERS ${_base} _stem)
         if(NOT _stem)
@@ -131,7 +132,7 @@ function(add_slang_shaders)
 
     # Collect just the .cppm files for easy consumption
     set(_all_cppms "${_shared_module_dst}")
-    foreach(_i RANGE 0 ${_num_groups})
+    foreach(_i RANGE 0 ${_last_group})
         math(EXPR _base "${_i} * 4")
         list(GET ARG_SHADERS ${_base} _stem)
         if(NOT _stem)
