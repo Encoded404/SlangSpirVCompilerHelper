@@ -45,24 +45,31 @@ The CLI executable is placed at `build/bin/<config>/slang-spirv-compiler`.
 
 ```bash
 slang-spirv-compiler <input.slang> [-e entry] [-s stage] [-o prefix] \
-    [-n namespace] [-m module-name] [-c class-name]
+    <namespace...> <class-name>
 ```
 
 Each invocation produces two files:
 - `<prefix>.spv`  — SPIR-V binary
 - `<prefix>.cppm` — C++20 module with `#embed`d bytecode + `constexpr` reflection
 
+The positional arguments define the module, namespace, and struct names:
+
+| Argument | Example | Produces |
+|---|---|---|
+| `App Fragment` | namespace segments | module `Shaders.App.Fragment.…`<br>namespace `Shaders::App::Fragment` |
+| `ComplexFragmentShader` | last segment = struct name | `struct ComplexFragmentShader` |
+
 ### Example
 
 ```bash
 slang-spirv-compiler shaders/triangle.slang -e main -s fragment \
-    -o build/generated/triangle -n MyApp -m Triangle -c TriangleShader
+    -o build/generated/triangle MyApp TriangleShader
 ```
 
 Generated `triangle.cppm`:
 
 ```cpp
-export module Triangle;
+export module Shaders.MyApp.TriangleShader;
 import ShaderReflection;
 export namespace Shaders::MyApp {
 struct TriangleShader {
@@ -90,6 +97,9 @@ include(SlangSpirVCompiler)
 
 # Compile shaders — each row creates an add_custom_command so CMake
 # rebuilds only the shaders whose source changed.
+# Generated module: Shaders.MyApp.mesh_vertShader (etc.)
+# Generated namespace: Shaders::MyApp
+# Generated struct: mesh_vertShader (etc.)
 add_slang_shaders(
     TARGET      MyShaders
     OUTPUT_DIR  "${CMAKE_BINARY_DIR}/generated/shaders"

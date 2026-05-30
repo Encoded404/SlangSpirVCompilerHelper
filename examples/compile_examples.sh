@@ -16,31 +16,31 @@ mkdir -p "$OUTPUT_DIR"
 
 echo "=== Compiling example shaders ==="
 
-"$COMPILER" "${SHADER_DIR}/triangle.slang"  -e main -s fragment  -o "${OUTPUT_DIR}/triangle_frag"  -n Examples -m TriangleFrag  -c TriangleFragmentShader
+"$COMPILER" "${SHADER_DIR}/triangle.slang"  -e main -s fragment  -o "${OUTPUT_DIR}/triangle_frag"  Examples TriangleFragmentShader
 echo "  triangle_frag.spv + triangle_frag.cppm"
 
-"$COMPILER" "${SHADER_DIR}/vertex.slang"    -e main -s vertex    -o "${OUTPUT_DIR}/vertex_main"    -n Examples -m VertexMain    -c VertexShader
+"$COMPILER" "${SHADER_DIR}/vertex.slang"    -e main -s vertex    -o "${OUTPUT_DIR}/vertex_main"    Examples VertexShader
 echo "  vertex_main.spv + vertex_main.cppm"
 
-"$COMPILER" "${SHADER_DIR}/compute.slang"   -e main -s compute   -o "${OUTPUT_DIR}/compute_main"   -n Examples -m ComputeMain   -c ComputeShader
+"$COMPILER" "${SHADER_DIR}/compute.slang"   -e main -s compute   -o "${OUTPUT_DIR}/compute_main"   Examples ComputeShader
 echo "  compute_main.spv + compute_main.cppm"
 
-"$COMPILER" "${SHADER_DIR}/parameter_block.slang" -e main -s fragment -o "${OUTPUT_DIR}/pb_main" -n Examples -m PBFrag -c ParameterBlockShader
+"$COMPILER" "${SHADER_DIR}/parameter_block.slang" -e main -s fragment -o "${OUTPUT_DIR}/pb_main" Examples ParameterBlockShader
 echo "  pb_main.spv + pb_main.cppm"
 
 # HLSL-compatibility style with register(...) but no vk::binding
-"$COMPILER" "${SHADER_DIR}/hlsl_compat_auto.slang" -e main -s fragment -o "${OUTPUT_DIR}/hlsl_compat_auto" -n Examples -m HlslCompatAuto -c HlslCompatAutoShader
+"$COMPILER" "${SHADER_DIR}/hlsl_compat_auto.slang" -e main -s fragment -o "${OUTPUT_DIR}/hlsl_compat_auto" Examples HlslCompatAutoShader
 echo "  hlsl_compat_auto.spv + hlsl_compat_auto.cppm"
 
-"$COMPILER" "${SHADER_DIR}/mixed_binding.slang" -e main -s fragment -o "${OUTPUT_DIR}/mixed_binding" -n Examples -m MixedBinding -c MixedBindingShader
+"$COMPILER" "${SHADER_DIR}/mixed_binding.slang" -e main -s fragment -o "${OUTPUT_DIR}/mixed_binding" Examples MixedBindingShader
 echo "  mixed_binding.spv + mixed_binding.cppm"
 
 # Pure Slang style (no register, no vk::binding)
-"$COMPILER" "${SHADER_DIR}/pure_slang.slang" -e main -s fragment -o "${OUTPUT_DIR}/pure_slang" -n Examples -m PureSlang -c PureSlangShader
+"$COMPILER" "${SHADER_DIR}/pure_slang.slang" -e main -s fragment -o "${OUTPUT_DIR}/pure_slang" Examples PureSlangShader
 echo "  pure_slang.spv + pure_slang.cppm"
 
 # Pure Slang style with explicit vk::binding annotations
-"$COMPILER" "${SHADER_DIR}/pure_slang_explicit.slang" -e main -s fragment -o "${OUTPUT_DIR}/pure_slang_explicit" -n Examples -m PureSlangExplicit -c PureSlangExplicitShader
+"$COMPILER" "${SHADER_DIR}/pure_slang_explicit.slang" -e main -s fragment -o "${OUTPUT_DIR}/pure_slang_explicit" Examples PureSlangExplicitShader
 echo "  pure_slang_explicit.spv + pure_slang_explicit.cppm"
 
 echo ""

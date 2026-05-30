@@ -20,9 +20,7 @@ struct Args {
     std::string entry_point = "main";
     std::string stage_str = "fragment";
     fs::path output_prefix;
-    std::string namespace_str;
-    std::string module_name;
-    std::string class_name;
+    std::vector<std::string> path_segments;
     bool help = false;
 };
 
@@ -109,21 +107,17 @@ static Args parseArgs(int argc, char** argv) {
         else if (arg == "-e" && i + 1 < argc) a.entry_point = argv[++i];
         else if (arg == "-s" && i + 1 < argc) a.stage_str = argv[++i];
         else if (arg == "-o" && i + 1 < argc) a.output_prefix = argv[++i];
-        else if (arg == "-n" && i + 1 < argc) a.namespace_str = argv[++i];
-        else if (arg == "-m" && i + 1 < argc) a.module_name = argv[++i];
-        else if (arg == "-c" && i + 1 < argc) a.class_name = argv[++i];
         else if (!had_input && arg[0] != '-') { a.input_file = arg; had_input = true; }
+        else if (had_input && arg[0] != '-') { a.path_segments.push_back(arg); }
     }
 
     auto stem = a.input_file.stem().string();
     if (a.output_prefix.empty())
         a.output_prefix = stem;
-    if (a.namespace_str.empty())
-        a.namespace_str = stem;
-    if (a.module_name.empty())
-        a.module_name = stem;
-    if (a.class_name.empty())
-        a.class_name = toPascalCase(stem) + "Shader";
+    if (a.path_segments.empty()) {
+        a.path_segments.push_back(stem);
+        a.path_segments.push_back(toPascalCase(stem) + "Shader");
+    }
 
     return a;
 }
@@ -131,22 +125,32 @@ static Args parseArgs(int argc, char** argv) {
 static void printUsage(const char* prog) {
     std::cerr << std::format(
         "usage: {} <input.slang> [-e entry] [-s stage] [-o prefix]\n"
-        "       [-n namespace] [-m module-name] [-c class-name]\n"
+        "       <namespace...> <class-name>\n"
         "\n"
         "Compiles a Slang shader to SPIR-V with Vulkan reflection.\n"
         "\n"
-        "  input.slang     Slang source file\n"
-        "  -e entry        Entry-point name (default: main)\n"
-        "  -s stage        Shader stage: vertex | fragment | compute | ...\n"
-        "  -o prefix       Output path prefix (default: <input stem>)\n"
-        "  -n namespace    C++ namespace inside Shaders:: (default: <stem>)\n"
-        "  -m module-name  C++20 module name (default: <stem>)\n"
-        "  -c class-name   Struct class name (default: <PascalCase stem>Shader)\n"
+        "  input.slang        Slang source file\n"
+        "  -e entry           Entry-point name (default: main)\n"
+        "  -s stage           Shader stage: vertex | fragment | compute | ...\n"
+        "  -o prefix          Output path prefix (default: <input stem>)\n"
+        "  <namespace...>     One or more namespace segments (e.g. App Fragment)\n"
+        "  <class-name>       Last segment = struct/class name\n"
+        "\n"
+        "The segments generate:\n"
+        "  Module:   Shaders.<namespace...>.<class-name>\n"
+        "  Namespace: Shaders::<namespace...>\n"
+        "  Struct:   <class-name>\n"
+        "\n"
+        "Example:\n"
+        "  {} triangle.slang App Fragment ComplexFragmentShader\n"
+        "  -> module Shaders.App.Fragment.ComplexFragmentShader\n"
+        "  -> namespace Shaders::App::Fragment\n"
+        "  -> struct ComplexFragmentShader\n"
         "\n"
         "Outputs:\n"
         "  <prefix>.spv               SPIR-V binary\n"
         "  <prefix>.cppm              C++20 module with embed + reflection\n",
-        prog);
+        prog, prog);
 }
 
 static std::string typeName(slang::TypeLayoutReflection* tl) {
@@ -419,6 +423,21 @@ int main(int argc, char** argv) try {
         out.write(spv_data, static_cast<std::streamsize>(spv_size));
     }
 
+    // ---- build module / namespace / class names from path segments ----
+    auto const& segs = args.path_segments;
+    std::string module_name;
+    std::string namespace_str;
+    std::string const& class_name = segs.back();
+
+    for (size_t i = 0; i < segs.size(); ++i) {
+        if (i > 0) module_name += '.';
+        module_name += segs[i];
+        if (i + 1 < segs.size()) {
+            if (i > 0) namespace_str += "::";
+            namespace_str += segs[i];
+        }
+    }
+
     // ---- write .cppm ----
     auto cppm_path = fs::path(args.output_prefix).replace_extension(".cppm");
     {
@@ -437,13 +456,17 @@ int main(int argc, char** argv) try {
         out << "\n";
         out << "#include <vulkan/vulkan_raii.hpp>\n";
         out << "\n";
-        out << "export module " << args.module_name << ";\n";
+        out << "export module Shaders." << module_name << ";\n";
         out << "\n";
         out << "import ShaderReflection;\n";
         out << "\n";
-        out << "export namespace Shaders::" << args.namespace_str << " {\n";
+        if (namespace_str.empty()) {
+            out << "export namespace Shaders {\n";
+        } else {
+            out << "export namespace Shaders::" << namespace_str << " {\n";
+        }
         out << "\n";
-        out << "struct " << args.class_name << " {\n";
+        out << "struct " << class_name << " {\n";
         out << "    [[nodiscard]] static std::span<const std::uint32_t> GetSpirvWords() noexcept {\n";
         out << "        alignas(4) static constexpr unsigned char kBytes[] = {\n";
         out << "            #embed \"" << spv_stem << ".spv\"\n";
@@ -480,7 +503,11 @@ int main(int argc, char** argv) try {
         out << "    }};\n";
         out << "};\n";
         out << "\n";
-        out << "} // namespace Shaders::" << args.namespace_str << "\n";
+        if (namespace_str.empty()) {
+            out << "} // namespace Shaders\n";
+        } else {
+            out << "} // namespace Shaders::" << namespace_str << "\n";
+        }
     }
 
     // ---- cleanup ----

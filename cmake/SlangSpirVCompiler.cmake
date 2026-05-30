@@ -6,7 +6,7 @@ include_guard(GLOBAL)
 #   add_slang_shaders(
 #     TARGET        <target>          # Custom target depending on all outputs
 #     OUTPUT_DIR    <dir>             # Where .spv + .cppm files are written
-#     NAMESPACE     <ns>              # C++ namespace inside Shaders::
+#     NAMESPACE     <ns>              # C++ namespace segment inside Shaders::
 #     SHADER_DIR    <dir>             # Dir containing .slang sources
 #     COMPILER      <exe|target>      # slang-spirv-compiler path or CMake target
 #     SHADERS
@@ -18,9 +18,10 @@ include_guard(GLOBAL)
 #   <OUTPUT_DIR>/<stem>.spv
 #   <OUTPUT_DIR>/<stem>.cppm
 #
-# Module name = <stem>
-# Class name  = <PascalCase(stem)>Shader
-# Namespace   = Shaders::<NAMESPACE>
+# Generated names (for stem="mesh_frag", NAMESPACE="MyApp"):
+#   Module   = Shaders.MyApp.mesh_fragShader
+#   Namespace = Shaders::MyApp
+#   Class    = mesh_fragShader
 #
 # The shared module ShaderReflection.cppm is automatically copied into
 # OUTPUT_DIR so the generated .cppm files can import it.  All .cppm
@@ -114,9 +115,8 @@ function(add_slang_shaders)
                     -e  "${_entry}"
                     -s  "${_stage}"
                     -o  "${ARG_OUTPUT_DIR}/${_stem}"
-                    -n  "${ARG_NAMESPACE}"
-                    -m  "${_stem}"
-                    -c  "${_stem}Shader"
+                    "${ARG_NAMESPACE}"
+                    "${_stem}Shader"
             COMMENT "Compiling ${_file} (${_stage}:${_entry}) -> ${_stem}"
         )
 
