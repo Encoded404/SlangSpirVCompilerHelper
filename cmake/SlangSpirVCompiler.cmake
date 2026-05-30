@@ -73,7 +73,12 @@ function(add_slang_shaders)
 
     if(EXISTS "${_shared_module_src}")
         if(NOT TARGET "${_shared_module_target}")
-            add_library("${_shared_module_target}" OBJECT "${_shared_module_src}")
+            add_library("${_shared_module_target}" OBJECT)
+            target_sources("${_shared_module_target}" PUBLIC
+                FILE_SET CXX_MODULES
+                BASE_DIRS "${SHARED_MODULE_DIR}"
+                FILES "${_shared_module_src}"
+            )
             target_compile_features("${_shared_module_target}" PRIVATE cxx_std_20)
             target_compile_options("${_shared_module_target}" PRIVATE
                 $<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-c23-extensions>
