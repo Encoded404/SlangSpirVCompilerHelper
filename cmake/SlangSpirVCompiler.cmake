@@ -23,13 +23,15 @@ include_guard(GLOBAL)
 #   Namespace = Shaders::MyApp
 #   Class    = mesh_frag
 #
-# The shared module ShaderReflection.cppm is automatically copied into
-# OUTPUT_DIR so the generated .cppm files can import it.  All .cppm
-# files are listed in the target property SLANG_CPPM_FILES:
+# The shared module ShaderReflection.cppm is compiled once as an OBJECT
+# library (slang_shared_reflection) that all consuming targets link against.
+# Only the per-shader .cppm files are listed in SLANG_CPPM_FILES:
 #
 #   get_target_property(CPPM_FILES MyShaders SLANG_CPPM_FILES)
 #   target_sources(my_app PRIVATE ${CPPM_FILES})
+#   target_link_libraries(my_app PRIVATE slang_shared_reflection)
 #
+# The OBJECT library target name is also exposed via SLANG_SHARED_MODULE_TARGET.
 # Generated .cppm files get COMPILE_OPTIONS "-Wno-c23-extensions".
 #=======================================================================]
 
@@ -57,36 +59,33 @@ function(add_slang_shaders)
 
     file(MAKE_DIRECTORY "${ARG_OUTPUT_DIR}")
 
-    # ---- ShaderReflection.cppm (shared module) ----
-    # The shared module lives alongside this cmake file in the slang-
-    # spirv-compiler-helper tree.  If you installed/cmake-bundled this
-    # module elsewhere, adjust SHARED_MODULE_DIR or override the path
-    # before calling add_slang_shaders().
+    # ---- ShaderReflection.cppm (shared module) as an OBJECT library ----
+    # Compiled once project-wide so multiple consuming targets can link
+    # it without duplicating the module.  The target name is exposed on
+    # every shader target via the SLANG_SHARED_MODULE_TARGET property.
     if(NOT SHARED_MODULE_DIR)
         get_filename_component(_helper_root "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/.." ABSOLUTE)
         set(SHARED_MODULE_DIR "${_helper_root}/src/cli_tool")
     endif()
 
     set(_shared_module_src "${SHARED_MODULE_DIR}/ShaderReflection.cppm")
-    set(_shared_module_dst "${ARG_OUTPUT_DIR}/ShaderReflection.cppm")
+    set(_shared_module_target "slang_shared_reflection")
 
     if(EXISTS "${_shared_module_src}")
-        add_custom_command(
-            OUTPUT  "${_shared_module_dst}"
-            DEPENDS "${_shared_module_src}"
-            COMMAND "${CMAKE_COMMAND}" -E copy "${_shared_module_src}" "${_shared_module_dst}"
-            COMMENT "Copying ShaderReflection.cppm"
-        )
-        set_source_files_properties("${_shared_module_dst}" PROPERTIES
-            COMPILE_OPTIONS "-Wno-c23-extensions"
-        )
+        if(NOT TARGET "${_shared_module_target}")
+            add_library("${_shared_module_target}" OBJECT "${_shared_module_src}")
+            target_compile_features("${_shared_module_target}" PRIVATE cxx_std_20)
+            target_compile_options("${_shared_module_target}" PRIVATE
+                $<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-c23-extensions>
+            )
+        endif()
     else()
         message(WARNING "ShaderReflection.cppm not found at ${_shared_module_src}; "
                         "generated .cppm files will need the shared module provided separately")
     endif()
 
     # ---- per-shader .spv + .cppm ----
-    set(_all_outputs "${_shared_module_dst}")
+    set(_all_outputs "")
 
     list(LENGTH ARG_SHADERS _len)
     math(EXPR _num_groups "${_len} / 4")
@@ -130,8 +129,8 @@ function(add_slang_shaders)
 
     add_custom_target("${ARG_TARGET}" DEPENDS ${_all_outputs})
 
-    # Collect just the .cppm files for easy consumption
-    set(_all_cppms "${_shared_module_dst}")
+    # Collect just the per-shader .cppm files for easy consumption
+    set(_all_cppms "")
     foreach(_i RANGE 0 ${_last_group})
         math(EXPR _base "${_i} * 4")
         list(GET ARG_SHADERS ${_base} _stem)
@@ -144,4 +143,10 @@ function(add_slang_shaders)
     set_target_properties("${ARG_TARGET}" PROPERTIES
         SLANG_CPPM_FILES "${_all_cppms}"
     )
+
+    if(TARGET "${_shared_module_target}")
+        set_target_properties("${ARG_TARGET}" PROPERTIES
+            SLANG_SHARED_MODULE_TARGET "${_shared_module_target}"
+        )
+    endif()
 endfunction()
