@@ -452,7 +452,6 @@ int main(int argc, char** argv) try {
         out << "#include <array>\n";
         out << "#include <cstdint>\n";
         out << "#include <span>\n";
-        out << "#include <string_view>\n";
         out << "\n";
         out << "#include <vulkan/vulkan_raii.hpp>\n";
         out << "\n";
@@ -468,11 +467,11 @@ int main(int argc, char** argv) try {
         out << "\n";
         out << "struct " << class_name << " {\n";
         out << "    [[nodiscard]] static std::span<const std::uint32_t> GetSpirvWords() noexcept {\n";
-        out << "        alignas(4) static constexpr unsigned char kBytes[] = {\n";
+        out << "        alignas(4) static constexpr std::array kBytes = {\n";
         out << "            #embed \"" << spv_stem << ".spv\"\n";
         out << "        };\n";
-        out << "        return { reinterpret_cast<const std::uint32_t*>(kBytes),\n";
-        out << "                 sizeof(kBytes) / sizeof(std::uint32_t) };\n";
+        out << "        return { reinterpret_cast<const std::uint32_t*>(kBytes.data()),\n";
+        out << "                 kBytes.size() / sizeof(std::uint32_t) };\n";
         out << "    }\n";
         out << "\n";
         out << "    [[nodiscard]] static vk::raii::ShaderModule\n";
@@ -488,11 +487,11 @@ int main(int argc, char** argv) try {
         out << "    }\n";
         out << "\n";
         out << "    [[nodiscard]] static constexpr std::span<const Binding> GetBindings() noexcept {\n";
-        out << "        return kBindings_;\n";
+        out << "        return kBindings;\n";
         out << "    }\n";
         out << "\n";
         out << "private:\n";
-        out << "    static constexpr std::array<Binding, " << entries.size() << "> kBindings_{{\n";
+        out << "    static constexpr std::array<Binding, " << entries.size() << "> kBindings{{\n";
         for (size_t i = 0; i < entries.size(); ++i) {
             auto& e = entries[i];
             out << "        { BindingType::" << e.type_enum << ", "

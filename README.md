@@ -78,7 +78,7 @@ struct Triangle {
     static constexpr ShaderStage GetStage() noexcept { return ShaderStage::eFragment; }
     static constexpr std::span<const Binding> GetBindings() noexcept { ... }
 private:
-    static constexpr std::array<Binding, 3> kBindings_{{ ... }};
+    static constexpr std::array<Binding, 3> kBindings{{ ... }};
 };
 }
 ```
