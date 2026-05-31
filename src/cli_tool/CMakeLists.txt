@@ -27,6 +27,8 @@ if(CMAKE_CONFIGURATION_TYPES)
     target_compile_options(${CLI_TOOL_TARGET} PRIVATE
         "$<$<CONFIG:Debug>:-g>"
         "$<$<CONFIG:Debug>:-O0>"
+        "$<$<CONFIG:RelWithDebInfo>:-g>"
+        "$<$<CONFIG:RelWithDebInfo>:-O2>"
         "$<$<CONFIG:Release>:-O3>"
     )
 endif()
