@@ -467,9 +467,9 @@ int main(int argc, char** argv) try {
         out << "\n";
         out << "struct " << class_name << " {\n";
         out << "    [[nodiscard]] static std::span<const std::uint32_t> GetSpirvWords() noexcept {\n";
-        out << "        alignas(4) static constexpr std::array<unsigned char, " << spv_size << "> kBytes = {{\n";
+        out << "        alignas(4) static constexpr std::array<unsigned char, " << spv_size << "> kBytes = {\n";
         out << "            #embed \"" << spv_stem << ".spv\"\n";
-        out << "        }};\n";
+        out << "        };\n";
         out << "        return { reinterpret_cast<const std::uint32_t*>(kBytes.data()),\n";
         out << "                 kBytes.size() / sizeof(std::uint32_t) };\n";
         out << "    }\n";
