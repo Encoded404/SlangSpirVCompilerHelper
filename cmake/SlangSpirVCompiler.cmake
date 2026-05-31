@@ -9,6 +9,7 @@ include_guard(GLOBAL)
 #     NAMESPACE     <ns>              # C++ namespace segment inside Shaders::
 #     SHADER_DIR    <dir>             # Dir containing .slang sources
 #     COMPILER      <exe|target>      # slang-spirv-compiler path or CMake target
+#     OPT_LEVEL     <0|1|2|3>         # Optimization level passed as -O flag to compiler
 #     SHADERS
 #       <stem>  <file>  <stage>  <entry>
 #       ...
@@ -36,7 +37,7 @@ include_guard(GLOBAL)
 #=======================================================================]
 
 function(add_slang_shaders)
-    cmake_parse_arguments(PARSE_ARGV 0 ARG "" "TARGET;OUTPUT_DIR;NAMESPACE;SHADER_DIR;COMPILER" "SHADERS")
+    cmake_parse_arguments(PARSE_ARGV 0 ARG "" "TARGET;OUTPUT_DIR;NAMESPACE;SHADER_DIR;COMPILER;OPT_LEVEL" "SHADERS")
 
     if(NOT ARG_TARGET)
         message(FATAL_ERROR "add_slang_shaders: TARGET is required")
@@ -46,6 +47,11 @@ function(add_slang_shaders)
     endif()
     if(NOT ARG_SHADERS)
         message(FATAL_ERROR "add_slang_shaders: SHADERS list is empty")
+    endif()
+    if(ARG_OPT_LEVEL)
+        if(NOT ARG_OPT_LEVEL MATCHES "^[0-3]$")
+            message(FATAL_ERROR "add_slang_shaders: OPT_LEVEL must be 0, 1, 2, or 3 (got '${ARG_OPT_LEVEL}')")
+        endif()
     endif()
 
     # Resolve the compiler executable
@@ -112,6 +118,12 @@ function(add_slang_shaders)
         set(_spv    "${ARG_OUTPUT_DIR}/${_stem}.spv")
         set(_cppm   "${ARG_OUTPUT_DIR}/${_stem}.cppm")
 
+        if(ARG_OPT_LEVEL)
+            set(_opt_flag "-O${ARG_OPT_LEVEL}")
+        else()
+            set(_opt_flag "")
+        endif()
+
         add_custom_command(
             OUTPUT  "${_spv}" "${_cppm}"
             DEPENDS "${_input}" ${ARG_COMPILER}
@@ -119,6 +131,7 @@ function(add_slang_shaders)
                     "${_input}"
                     -e  "${_entry}"
                     -s  "${_stage}"
+                    ${_opt_flag}
                     -o  "${ARG_OUTPUT_DIR}/${_stem}"
                     "${ARG_NAMESPACE}"
                     "${_stem}"

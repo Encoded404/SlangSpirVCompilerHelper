@@ -21,6 +21,7 @@ struct Args {
     std::string stage_str = "fragment";
     fs::path output_prefix;
     std::vector<std::string> path_segments;
+    SlangOptimizationLevel optLevel = SLANG_OPTIMIZATION_LEVEL_NONE;
     bool help = false;
 };
 
@@ -107,6 +108,15 @@ static Args parseArgs(int argc, char** argv) {
         else if (arg == "-e" && i + 1 < argc) a.entry_point = argv[++i];
         else if (arg == "-s" && i + 1 < argc) a.stage_str = argv[++i];
         else if (arg == "-o" && i + 1 < argc) a.output_prefix = argv[++i];
+        else if (arg.size() == 3 && arg[0] == '-' && arg[1] == 'O' && arg[2] >= '0' && arg[2] <= '3') {
+            static constexpr SlangOptimizationLevel map[] = {
+                SLANG_OPTIMIZATION_LEVEL_NONE,
+                SLANG_OPTIMIZATION_LEVEL_DEFAULT,
+                SLANG_OPTIMIZATION_LEVEL_HIGH,
+                SLANG_OPTIMIZATION_LEVEL_MAXIMAL,
+            };
+            a.optLevel = map[arg[2] - '0'];
+        }
         else if (!had_input && arg[0] != '-') { a.input_file = arg; had_input = true; }
         else if (had_input && arg[0] != '-') { a.path_segments.push_back(arg); }
     }
@@ -133,6 +143,7 @@ static void printUsage(const char* prog) {
         "  -e entry           Entry-point name (default: main)\n"
         "  -s stage           Shader stage: vertex | fragment | compute | ...\n"
         "  -o prefix          Output path prefix (default: <input stem>)\n"
+        "  -O{{0,1,2,3}}      Optimization level (default: 0 = none)\n"
         "  <namespace...>     One or more namespace segments (e.g. App Fragment)\n"
         "  <class-name>       Last segment = struct/class name\n"
         "\n"
@@ -315,10 +326,17 @@ int main(int argc, char** argv) try {
     if (SLANG_FAILED(slang::createGlobalSession(&globalSession)))
         throw std::runtime_error("createGlobalSession failed");
 
+    slang::CompilerOptionEntry optEntry = {};
+    optEntry.name = slang::CompilerOptionName::Optimization;
+    optEntry.value.kind = slang::CompilerOptionValueKind::Int;
+    optEntry.value.intValue0 = static_cast<int32_t>(args.optLevel);
+
     slang::TargetDesc targetDesc = {};
     targetDesc.format = SLANG_SPIRV;
     targetDesc.profile = globalSession->findProfile("SPIRV_1_6");
     targetDesc.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
+    targetDesc.compilerOptionEntries = &optEntry;
+    targetDesc.compilerOptionEntryCount = 1;
 
     slang::SessionDesc sessionDesc = {};
     sessionDesc.targets = &targetDesc;

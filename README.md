@@ -106,6 +106,7 @@ add_slang_shaders(
     NAMESPACE   MyApp
     SHADER_DIR  "${CMAKE_SOURCE_DIR}/shaders"
     COMPILER    slang-spirv-compiler
+    OPT_LEVEL   2
     SHADERS
         mesh_vert  mesh.slang    vertex   main
         mesh_frag  mesh.slang    fragment main
@@ -118,6 +119,8 @@ add_slang_shaders(
 get_target_property(SHADER_CPPM MyShaders SLANG_CPPM_FILES)
 target_sources(my_app PRIVATE ${SHADER_CPPM})
 ```
+
+| `OPT_LEVEL` | `0`, `1`, `2`, or `3` | Optimization level passed as `-O` flag to the compiler (default: none) |
 
 If you keep the cmake module outside the project tree (e.g. installed), set `SHARED_MODULE_DIR` before calling `add_slang_shaders`:
 
