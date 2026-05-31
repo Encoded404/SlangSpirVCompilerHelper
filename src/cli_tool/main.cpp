@@ -416,9 +416,9 @@ int main(int argc, char** argv) try {
 
     // ---- write .spv ----
     auto spv_path = fs::path(args.output_prefix).replace_extension(".spv");
+    auto spv_size = code->getBufferSize();
     {
         const auto* spv_data = static_cast<const char*>(code->getBufferPointer());
-        auto spv_size = code->getBufferSize();
         std::ofstream out(spv_path, std::ios::binary);
         out.write(spv_data, static_cast<std::streamsize>(spv_size));
     }
@@ -467,7 +467,7 @@ int main(int argc, char** argv) try {
         out << "\n";
         out << "struct " << class_name << " {\n";
         out << "    [[nodiscard]] static std::span<const std::uint32_t> GetSpirvWords() noexcept {\n";
-        out << "        alignas(4) static constexpr std::array kBytes = {{\n";
+        out << "        alignas(4) static constexpr std::array<unsigned char, " << spv_size << "> kBytes = {{\n";
         out << "            #embed \"" << spv_stem << ".spv\"\n";
         out << "        }};\n";
         out << "        return { reinterpret_cast<const std::uint32_t*>(kBytes.data()),\n";
