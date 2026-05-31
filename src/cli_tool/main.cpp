@@ -519,7 +519,7 @@ int main(int argc, char** argv) try {
     session->release();
     globalSession->release();
 
-    std::cout << std::format("ok: {} {}\n", spv_path.string(), cppm_path.string());
+    //std::cout << std::format("ok: {} {}\n", spv_path.string(), cppm_path.string());
     return 0;
 
 } catch (std::exception const& e) {
