@@ -138,10 +138,6 @@ function(add_slang_shaders)
             COMMENT "Compiling ${_file} (${_stage}:${_entry}) -> ${_stem}"
         )
 
-        set_source_files_properties("${_cppm}" PROPERTIES
-            COMPILE_OPTIONS "-Wno-c23-extensions"
-        )
-
         list(APPEND _all_outputs "${_spv}" "${_cppm}")
     endforeach()
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -309,6 +310,42 @@ static void collectAllBindings(
     }
 }
 
+// FNV-1a 64-bit hash (used for binding hash generation)
+static constexpr std::uint64_t fnv1a_64(std::string_view s, std::uint64_t h = 0xcbf29ce484222325ULL) {
+    for (char c : s) return fnv1a_64(s.substr(1), (h ^ static_cast<std::uint8_t>(c)) * 0x100000001b3ULL);
+    return h;
+}
+
+static std::uint64_t computeBindingHash(const std::vector<BindingEntry>& entries, std::string_view stage_enum_str) {
+    std::string concat;
+    for (const auto& e : entries) {
+        concat += e.type_enum;
+        concat += ',';
+        concat += std::to_string(e.set);
+        concat += ',';
+        concat += std::to_string(e.binding);
+        concat += ',';
+        concat += std::to_string(e.count);
+        concat += ';';
+    }
+    std::uint64_t stage_val = 0;
+    if (stage_enum_str == "eVertex") stage_val = 0;
+    else if (stage_enum_str == "eFragment") stage_val = 1;
+    else if (stage_enum_str == "eCompute") stage_val = 2;
+    else if (stage_enum_str == "eRayGeneration") stage_val = 3;
+    else if (stage_enum_str == "eIntersection") stage_val = 4;
+    else if (stage_enum_str == "eAnyHit") stage_val = 5;
+    else if (stage_enum_str == "eClosestHit") stage_val = 6;
+    else if (stage_enum_str == "eMiss") stage_val = 7;
+    else if (stage_enum_str == "eCallable") stage_val = 8;
+    else if (stage_enum_str == "eMesh") stage_val = 9;
+    else if (stage_enum_str == "eAmplification") stage_val = 10;
+    else if (stage_enum_str == "eHull") stage_val = 11;
+    else if (stage_enum_str == "eDomain") stage_val = 12;
+    else if (stage_enum_str == "eGeometry") stage_val = 13;
+    return (stage_val << 56) | fnv1a_64(concat);
+}
+
 // ---------------------------------------------------------------------------
 int main(int argc, char** argv) try {
     auto args = parseArgs(argc, argv);
@@ -456,26 +493,27 @@ int main(int argc, char** argv) try {
         }
     }
 
+    // ---- compute binding hash ----
+    auto stage_enum = stageEnumString(actualStage);
+    auto binding_hash = computeBindingHash(entries, stage_enum);
+    auto source_filename = args.input_file.filename().string();
+    auto spv_stem = fs::path(args.output_prefix).filename().string();
+
     // ---- write .cppm ----
     auto cppm_path = fs::path(args.output_prefix).replace_extension(".cppm");
     {
-        auto spv_stem = fs::path(args.output_prefix).filename().string();
-
         std::ofstream out(cppm_path);
         out << "// Auto-generated. Do not edit.\n";
         out << "// Source: " << fs::absolute(args.input_file).string() << "\n";
         out << "\n";
         out << "module;\n";
         out << "\n";
-        out << "#include <array>\n";
-        out << "#include <cstdint>\n";
-        out << "#include <span>\n";
-        out << "\n";
-        out << "#include <vulkan/vulkan_raii.hpp>\n";
-        out << "\n";
         out << "export module Shaders." << module_name << ";\n";
         out << "\n";
+        out << "import std;\n";
+        out << "\n";
         out << "import ShaderReflection;\n";
+        out << "import VulkanEngine.ShaderManager;\n";
         out << "\n";
         if (namespace_str.empty()) {
             out << "export namespace Shaders {\n";
@@ -484,29 +522,33 @@ int main(int argc, char** argv) try {
         }
         out << "\n";
         out << "struct " << class_name << " {\n";
-        out << "    [[nodiscard]] static std::span<const std::uint32_t> GetSpirvWords() noexcept {\n";
-        out << "        // NOLINTNEXTLINE(modernize-avoid-c-arrays)\n";
-        out << "        alignas(4) static constexpr unsigned char kBytes[] = {\n";
-        out << "            #embed \"" << spv_stem << ".spv\"\n";
-        out << "        };\n";
-        out << "        return { reinterpret_cast<const std::uint32_t*>(kBytes),\n";
-        out << "                 sizeof(kBytes) / sizeof(std::uint32_t) };\n";
+        out << "    [[nodiscard]] static constexpr std::string_view GetSpirvFilename() noexcept {\n";
+        out << "        return \"" << spv_stem << ".spv\";\n";
         out << "    }\n";
         out << "\n";
-        out << "    [[nodiscard]] static vk::raii::ShaderModule\n";
-        out << "    CreateModule(vk::raii::Device const& device) {\n";
-        out << "        auto const words = GetSpirvWords();\n";
-        out << "        vk::ShaderModuleCreateInfo const info({},\n";
-        out << "            words.size() * sizeof(std::uint32_t), words.data());\n";
-        out << "        return vk::raii::ShaderModule(device, info);\n";
+        out << "    [[nodiscard]] static constexpr std::string_view GetSourceFilename() noexcept {\n";
+        out << "        return \"" << source_filename << "\";\n";
+        out << "    }\n";
+        out << "\n";
+        out << "    [[nodiscard]] static constexpr std::uint64_t GetBindingHash() noexcept {\n";
+        out << "        return 0x" << std::hex << binding_hash << std::dec << "ULL;\n";
         out << "    }\n";
         out << "\n";
         out << "    [[nodiscard]] static constexpr ShaderStage GetStage() noexcept {\n";
-        out << "        return ShaderStage::" << stageEnumString(actualStage) << ";\n";
+        out << "        return ShaderStage::" << stage_enum << ";\n";
         out << "    }\n";
         out << "\n";
         out << "    [[nodiscard]] static constexpr std::span<const Binding> GetBindings() noexcept {\n";
         out << "        return kBindings;\n";
+        out << "    }\n";
+        out << "\n";
+        out << "    static VulkanEngine::ShaderSystem::ShaderId Register(\n";
+        out << "            VulkanEngine::ShaderSystem::ShaderManager& mgr,\n";
+        out << "            std::string_view data_dir) {\n";
+        out << "        auto spv_path = std::format(\"{}/{}\", data_dir, GetSpirvFilename());\n";
+        out << "        auto slang_path = std::format(\"{}/{}\", VKENGINE_SLANG_SOURCE_ROOT, GetSourceFilename());\n";
+        out << "        return mgr.Register(std::move(spv_path), std::move(slang_path),\n";
+        out << "                            GetStage(), GetBindings(), GetBindingHash());\n";
         out << "    }\n";
         out << "\n";
         out << "private:\n";
