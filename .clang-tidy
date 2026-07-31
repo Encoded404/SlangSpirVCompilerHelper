@@ -70,5 +70,3 @@ CheckOptions:
     value:  CamelCase
   - key:    readability-identifier-naming.MacroDefinitionCase
     value:  aNy_CasE
-
----
