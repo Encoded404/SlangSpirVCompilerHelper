@@ -571,13 +571,25 @@ int main(int argc, char** argv) try {
     }
 
     // ---- cleanup ----
+    // Release the per-compile objects (code, linkedProgram, composite, entryPoint,
+    // module) but KEEP the session and global session alive.
+    //
+    // Slang's Session API has an upstream lifetime bug: tearing down the session
+    // while per-compile objects exist corrupts the heap on Linux regardless of
+    // release order (verified against 2025.14.3, 2026.2, 2026.5 and 2026.7.1, both
+    // the official binaries and a self-built v2026.7.1). As long as the session
+    // lives, its module cache keeps the module alive, so releasing our references
+    // is safe; releasing the session itself is what double-frees the module.
+    // This tool is a short-lived process invoked once per shader, so the session
+    // and global session are intentionally left for the OS to reclaim at exit.
+    //
+    // See docs/slang-session-teardown-heap-corruption-bug-and-workaround.md for
+    // the full write-up (symptoms, root cause, version matrix, workaround).
     code->release();
     linkedProgram->release();
     composite->release();
     entryPoint->release();
     module->release();
-    session->release();
-    globalSession->release();
 
     //std::cout << std::format("ok: {} {}\n", spv_path.string(), cppm_path.string());
     return 0;
