@@ -9,6 +9,7 @@ include_guard(GLOBAL)
 #     NAMESPACE     <ns>              # C++ namespace segment inside Shaders::
 #     SHADER_DIR    <dir>             # Dir containing .slang sources
 #     COMPILER      <exe|target>      # slang-spirv-compiler path or CMake target
+#     COMPILER_DEPENDS <file|target>  # extra deps the compiler build must satisfy
 #     OPT_LEVEL     <0|1|2|3>         # Optimization level passed as -O flag to compiler
 #     SHADERS
 #       <stem>  <file>  <stage>  <entry>
@@ -37,7 +38,7 @@ include_guard(GLOBAL)
 #=======================================================================]
 
 function(add_slang_shaders)
-    cmake_parse_arguments(PARSE_ARGV 0 ARG "" "TARGET;OUTPUT_DIR;NAMESPACE;SHADER_DIR;COMPILER;OPT_LEVEL" "SHADERS")
+    cmake_parse_arguments(PARSE_ARGV 0 ARG "" "TARGET;OUTPUT_DIR;NAMESPACE;SHADER_DIR;COMPILER;OPT_LEVEL" "SHADERS;COMPILER_DEPENDS")
 
     if(NOT ARG_TARGET)
         message(FATAL_ERROR "add_slang_shaders: TARGET is required")
@@ -126,7 +127,7 @@ function(add_slang_shaders)
 
         add_custom_command(
             OUTPUT  "${_spv}" "${_cppm}"
-            DEPENDS "${_input}" ${ARG_COMPILER}
+            DEPENDS "${_input}" ${ARG_COMPILER} ${ARG_COMPILER_DEPENDS}
             COMMAND "${_compiler_exe}"
                     "${_input}"
                     -e  "${_entry}"
