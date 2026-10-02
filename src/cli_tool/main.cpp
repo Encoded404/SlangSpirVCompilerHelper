@@ -548,7 +548,8 @@ int main(int argc, char** argv) try {
         out << "        auto spv_path = std::format(\"{}/{}\", data_dir, GetSpirvFilename());\n";
         out << "        auto slang_path = std::format(\"{}/{}\", VKENGINE_SLANG_SOURCE_ROOT, GetSourceFilename());\n";
         out << "        return mgr.Register(std::move(spv_path), std::move(slang_path),\n";
-        out << "                            GetStage(), GetBindings(), GetBindingHash());\n";
+        out << "                            GetStage(), GetBindings(), GetBindingHash(), "
+            << std::quoted(args.entry_point) << ");\n";
         out << "    }\n";
         out << "\n";
         out << "private:\n";
